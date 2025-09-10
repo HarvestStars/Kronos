@@ -86,7 +86,7 @@ class QlibTestDataset(Dataset):
         x = (x - x_mean) / (x_std + 1e-5)
         x = np.clip(x, -self.config.clip, self.config.clip)
 
-        return torch.from_numpy(x), torch.from_numpy(x_stamp), torch.from_numpy(y_stamp), symbol, timestamp
+        return torch.from_numpy(x), torch.from_numpy(x_stamp), torch.from_numpy(y_stamp), symbol, timestamp # context_end datetime
 
 
 # =================================================================================
@@ -263,17 +263,22 @@ def generate_predictions(config: dict, test_data: dict) -> dict[str, pd.DataFram
 
     results = defaultdict(list)
     with torch.no_grad():
-        for x, x_stamp, y_stamp, symbols, timestamps in tqdm(loader, desc="Inference"):
+        # timestamps is the list of those end of the context window x, which is the x.shape[1]-1 datetime
+        for x, x_stamp, y_stamp, symbols, timestamps in tqdm(loader, desc="Inference"): #[B, T, d_in]
             preds = auto_regressive_inference(
                 tokenizer, model, x.to(device), x_stamp.to(device), y_stamp.to(device),
                 max_context=config['max_context'], pred_len=config['pred_len'], clip=config['clip'],
                 T=config['T'], top_k=config['top_k'], top_p=config['top_p'], sample_count=config['sample_count']
             )
+            print(f"Predictions closes: {preds[:, -1, 3]}")
 
             # The 'close' price is at index 3 in `feature_list`
-            last_day_close = x[:, -1, 3].numpy()
+            last_day_close = x[:, -1, 3].numpy() # this latest timeindex "-1" is equal to the timestamps[i], means x[i, -1, 3] points to timestamps[i]
+            print(f"Last day closes: {last_day_close}")
+            
             signals = {
-                'last': preds[:, -1, 3] - last_day_close,
+                # return of the (latest predicted day(from preds,which is x + newest) - the previous day(from x))
+                'last': preds[:, -1, 3] - last_day_close, # preds shape: [B, T, d_in]
                 'mean': np.mean(preds[:, :, 3], axis=1) - last_day_close,
                 'max': np.max(preds[:, :, 3], axis=1) - last_day_close,
                 'min': np.min(preds[:, :, 3], axis=1) - last_day_close,
@@ -286,7 +291,7 @@ def generate_predictions(config: dict, test_data: dict) -> dict[str, pd.DataFram
     print("Post-processing predictions into DataFrames...")
     prediction_dfs = {}
     for sig_type, records in results.items():
-        df = pd.DataFrame(records, columns=['datetime', 'instrument', 'score'])
+        df = pd.DataFrame(records, columns=['datetime', 'instrument', 'score']) # score is the return from (last prediction close - its previous close)
         pivot_df = df.pivot_table(index='datetime', columns='instrument', values='score')
         prediction_dfs[sig_type] = pivot_df.sort_index()
 

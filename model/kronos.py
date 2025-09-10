@@ -296,7 +296,7 @@ class Kronos(nn.Module, PyTorchModelHubMixin):
                 - s1 logits: Logits for s1 token predictions. Shape: [batch_size, seq_len, s1_vocab_size]
                 - context: Context representation from the Transformer. Shape: [batch_size, seq_len, d_model]
         """
-        x = self.embedding([s1_ids, s2_ids])
+        x = self.embedding([s1_ids, s2_ids]) # [B, T] + [B, T] -> [B, T, d_model]
         if stamp is not None:
             time_embedding = self.time_emb(stamp)
             x = x + time_embedding
@@ -400,7 +400,7 @@ def auto_regressive_inference(tokenizer, model, x, x_stamp, y_stamp, max_context
         x_stamp = x_stamp.unsqueeze(1).repeat(1, sample_count, 1, 1).reshape(-1, x_stamp.size(1), x_stamp.size(2)).to(device)
         y_stamp = y_stamp.unsqueeze(1).repeat(1, sample_count, 1, 1).reshape(-1, y_stamp.size(1), y_stamp.size(2)).to(device)
 
-        x_token = tokenizer.encode(x, half=True)
+        x_token = tokenizer.encode(x, half=True) # [LongTensor(B, T), LongTensor(B, T)], which are coarse subtokens and fine subtokens
 
         def get_dynamic_stamp(x_stamp, y_stamp, current_seq_len, pred_step):
 
@@ -425,6 +425,8 @@ def auto_regressive_inference(tokenizer, model, x, x_stamp, y_stamp, max_context
             current_stamp = get_dynamic_stamp(x_stamp, y_stamp, current_seq_len, i)
 
             s1_logits, context = model.decode_s1(input_tokens[0], input_tokens[1], current_stamp)
+            # only take the last predicted token, the coarse subtokens
+            # because we are doing auto-regressive generation step by step and already have the ground truth for previous tokens
             s1_logits = s1_logits[:, -1, :]
             sample_pre = sample_from_logits(s1_logits, temperature=T, top_k=top_k, top_p=top_p, sample_logits=True)
 
@@ -432,18 +434,18 @@ def auto_regressive_inference(tokenizer, model, x, x_stamp, y_stamp, max_context
             s2_logits = s2_logits[:, -1, :]
             sample_post = sample_from_logits(s2_logits, temperature=T, top_k=top_k, top_p=top_p, sample_logits=True)
 
-            x_token[0] = torch.cat([x_token[0], sample_pre], dim=1)
-            x_token[1] = torch.cat([x_token[1], sample_post], dim=1)
+            x_token[0] = torch.cat([x_token[0], sample_pre], dim=1)  # [LongTensor(B, T+1),
+            x_token[1] = torch.cat([x_token[1], sample_post], dim=1) #                      LongTensor(B, T+1)]
 
             torch.cuda.empty_cache()
 
         input_tokens = [t[:, -max_context:].contiguous() for t in x_token]
-        z = tokenizer.decode(input_tokens, half=True)
+        z = tokenizer.decode(input_tokens, half=True) # [B, T, d_in], T includes the latest pred_len, with the newest pred_len tokens
         z = z.reshape(batch_size, sample_count, z.size(1), z.size(2))
         preds = z.cpu().numpy()
         preds = np.mean(preds, axis=1)
 
-        return preds
+        return preds # [B, T, d_in]
 
 
 def calc_time_stamps(x_timestamp):

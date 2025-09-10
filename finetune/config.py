@@ -6,6 +6,13 @@ class Config:
     """
 
     def __init__(self):
+        # Mongo DB connection parameters
+        self.mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+        self.mongo_db = "market_info"
+        self.interval = "4h"  # Kline interval in the database
+        self.symbols = ["btcusdt", "ethusdt", "ltcusdt", "bnbusdt"]
+        self.time_field = "endtime"
+
         # =================================================================
         # Data & Feature Parameters
         # =================================================================
@@ -14,8 +21,8 @@ class Config:
         self.instrument = 'csi300'
 
         # Overall time range for data loading from Qlib.
-        self.dataset_begin_time = "2011-01-01"
-        self.dataset_end_time = '2025-06-05'
+        self.dataset_begin_time = "2023-08-10"
+        self.dataset_end_time = '2025-09-09'
 
         # Sliding window parameters for creating samples.
         self.lookback_window = 90  # Number of past time steps for input.
@@ -32,9 +39,9 @@ class Config:
         # =================================================================
         # Note: The validation/test set starts earlier than the training/validation set ends
         # to account for the `lookback_window`.
-        self.train_time_range = ["2011-01-01", "2022-12-31"]
-        self.val_time_range = ["2022-09-01", "2024-06-30"]
-        self.test_time_range = ["2024-04-01", "2025-06-05"]
+        self.train_time_range = ["2023-08-10", "2025-04-01"]
+        self.val_time_range = ["2025-04-15", "2025-05-15"]
+        self.test_time_range = ["2025-06-01", "2025-09-09"]
         self.backtest_time_range = ["2024-07-01", "2025-06-05"]
 
         # TODO: Directory to save the processed, pickled datasets.
@@ -76,9 +83,9 @@ class Config:
         self.comet_config = {
             # It is highly recommended to load secrets from environment variables
             # for security purposes. Example: os.getenv("COMET_API_KEY")
-            "api_key": "YOUR_COMET_API_KEY",
+            "api_key": "7WVsWpsoDjFXt9k6PQjMJQXFD",
             "project_name": "Kronos-Finetune-Demo",
-            "workspace": "your_comet_workspace" # TODO: Change to your Comet ML workspace name
+            "workspace": "harveststars" # TODO: Change to your Comet ML workspace name
         }
         self.comet_tag = 'finetune_demo'
         self.comet_name = 'finetune_demo'
@@ -98,8 +105,8 @@ class Config:
         # =================================================================
         # TODO: Update these paths to your pretrained model locations.
         # These can be local paths or Hugging Face Hub model identifiers.
-        self.pretrained_tokenizer_path = "path/to/your/Kronos-Tokenizer-base"
-        self.pretrained_predictor_path = "path/to/your/Kronos-small"
+        self.pretrained_tokenizer_path = "NeoQuasar/Kronos-Tokenizer-base"
+        self.pretrained_predictor_path = "NeoQuasar/Kronos-small"
 
         # Paths to the fine-tuned models, derived from the save_path.
         # These will be generated automatically during training.

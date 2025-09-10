@@ -1,3 +1,5 @@
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu129
+
 numpy
 pandas
 torch
